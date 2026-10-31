@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  audite:
+    build: .
+    container_name: audite-security-scanner
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+    volumes:
+      - audite_data:/app/backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  audite_data:
+
