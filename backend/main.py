@@ -87,6 +87,17 @@ async def rate_limiting_middleware(request: Request, call_next):
         RATE_LIMIT_STORE[client_ip] = timestamps
 
     response = await call_next(request)
+    # Security Response Headers (Audite self-hardening)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data:; "
+        "font-src 'self' https: data:; "
+        "img-src 'self' https: data:;"
+    )
     return response
 
 
