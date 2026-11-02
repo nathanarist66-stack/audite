@@ -155,3 +155,4 @@ async def scan_cms_security(
         "detected_version": detected_version,
         "findings": findings
     }
+

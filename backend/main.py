@@ -56,7 +56,10 @@ from .db import (
 app = FastAPI(
     title="Audite Security Engine API",
     description="Moteur d'audit passif de vulnérabilités web et recommandations de remédiation.",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url=None,      # Désactivé en production pour empêcher la reconnaissance des routes
+    redoc_url=None,     # Désactivé en production
+    openapi_url=None    # Désactivé en production pour masquer les schémas internes
 )
 
 # Enable CORS for frontend development

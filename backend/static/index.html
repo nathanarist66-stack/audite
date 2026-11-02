@@ -69,11 +69,6 @@
             <span>👥 Prospects (<span id="nav-leads-count">0</span>)</span>
           </button>
         </nav>
-
-        <a href="/docs" target="_blank" class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition no-print">
-          <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
-          <span>Swagger API</span>
-        </a>
         <div class="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/60 border border-emerald-800/50 text-emerald-400 font-mono no-print">
           <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
           <span>Moteur Prêt</span>
@@ -981,7 +976,7 @@ Bien cordialement,
               <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
               <span>Actualiser</span>
             </button>
-            <a id="btn-export-leads-csv" href="/api/leads/export/csv" target="_blank" class="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs transition flex items-center gap-1.5 shadow-lg shadow-emerald-500/20">
+            <a id="btn-export-leads-csv" href="/api/leads/export/csv" target="_blank" class="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs transition flex items-center gap-1.5 shadow-lg shadow-emerald-500/20" rel="noopener noreferrer">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
               <span>Exporter en CSV (Excel)</span>
             </a>
@@ -1021,9 +1016,8 @@ Bien cordialement,
     <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
       <p>Audite • Moteur d'audit passif et guide de remédiation de sécurité web conforme OWASP.</p>
       <div class="flex items-center gap-4">
-        <a href="https://owasp.org/www-project-top-ten/" target="_blank" class="hover:text-emerald-400 transition">OWASP Top 10</a>
-        <a href="https://cheatsheetseries.owasp.org/" target="_blank" class="hover:text-emerald-400 transition">OWASP Cheat Sheets</a>
-        <a href="/docs" target="_blank" class="hover:text-emerald-400 transition">Documentation API</a>
+        <a href="https://owasp.org/www-project-top-ten/" target="_blank" rel="noopener noreferrer" class="hover:text-emerald-400 transition">OWASP Top 10</a>
+        <a href="https://cheatsheetseries.owasp.org/" target="_blank" rel="noopener noreferrer" class="hover:text-emerald-400 transition">OWASP Cheat Sheets</a>
       </div>
     </div>
 
@@ -2261,7 +2255,7 @@ Bien cordialement,
 
       document.getElementById('badge-preview-img').src = badgeUrl;
       document.getElementById('badge-md-code').value = `[![Audite Security](${badgeUrl})](${reportUrl})`;
-      document.getElementById('badge-html-code').value = `<a href="${reportUrl}" target="_blank"><img src="${badgeUrl}" alt="Audite Security Badge"></a>`;
+      document.getElementById('badge-html-code').value = `<a href="${reportUrl}" target="_blank" rel="noopener noreferrer"><img src="${badgeUrl}" alt="Audite Security Badge"></a>`;
 
       document.getElementById('modal-badge').classList.remove('hidden');
     }

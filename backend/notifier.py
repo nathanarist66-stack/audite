@@ -107,3 +107,4 @@ async def notify_new_lead(lead_data: Dict[str, Any]) -> bool:
     print(f"Domaine: {domain} | Email: {prospect_email} | Score: {score}/100 ({grade}) | Critiques: {critical_count}")
     print(f"=======================================================\n")
     return True
+
