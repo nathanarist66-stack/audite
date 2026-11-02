@@ -4,6 +4,7 @@ FastAPI Application Backend.
 """
 
 import asyncio
+import os
 import ipaddress
 import socket
 import csv
@@ -29,6 +30,9 @@ from .scanners.secrets_scanner import scan_for_secrets
 from .scanners.privacy_scanner import scan_privacy_gdpr
 from .scanners.reputation_scanner import scan_ip_reputation
 from .scanners.sitemap_scanner import discover_and_audit_sitemap
+from .scanners.cms_scanner import scan_cms_security
+from .scanners.subdomains_scanner import discover_subdomains_passive
+from .notifier import notify_new_lead, ADMIN_NOTIFICATION_EMAIL
 from .alerts import send_security_alert, send_test_webhook
 from .scoring import compile_audit_report
 from .badge import generate_svg_badge
@@ -281,6 +285,8 @@ async def execute_audit(raw_url: str, deep_scan: bool = False):
     secrets_res = {"score_percentage": 100, "findings": [], "detected_count": 0}
     privacy_res = {"score_percentage": 100, "findings": [], "trackers": []}
     sitemap_res = {"findings": []}
+    cms_res = {"cms_name": "Inconnu", "findings": []}
+    subdomains_res = {"subdomains": [], "sensitive_subdomains": [], "findings": []}
 
     async with httpx.AsyncClient(
         verify=False,  # We want to capture headers even if cert is self-signed/expired to diagnose it
@@ -308,6 +314,8 @@ async def execute_audit(raw_url: str, deep_scan: bool = False):
             leaks_res = await scan_information_leaks(clean_url, response_headers, client)
             secrets_res = await scan_for_secrets(html_content, clean_url, client)
             privacy_res = await scan_privacy_gdpr(clean_url, html_content, response_headers, client)
+            cms_res = await scan_cms_security(clean_url, html_content, response_headers, client)
+            subdomains_res = await discover_subdomains_passive(hostname, client)
             
             if deep_scan:
                 sitemap_res = await discover_and_audit_sitemap(clean_url, client)
@@ -351,7 +359,9 @@ async def execute_audit(raw_url: str, deep_scan: bool = False):
         secrets_res=secrets_res,
         privacy_res=privacy_res,
         reputation_res=reputation_res,
-        sitemap_res=sitemap_res
+        sitemap_res=sitemap_res,
+        cms_res=cms_res,
+        subdomains_res=subdomains_res
     )
     report["http_status"] = status_code
     report["domain"] = hostname
@@ -600,9 +610,36 @@ async def check_all_monitors():
     return {"checked": len(results), "items": get_all_monitored_domains()}
 
 
+ADMIN_PIN = os.getenv("ADMIN_PIN", "842691")
+
+
+def verify_admin_access(request: Request, pin: Optional[str] = None):
+    """Vérifie la validité du Code PIN administrateur (Header X-Admin-PIN ou query param pin)."""
+    auth_pin = request.headers.get("X-Admin-PIN") or request.headers.get("x-admin-pin") or pin
+    if not auth_pin or auth_pin.strip() != ADMIN_PIN.strip():
+        raise HTTPException(
+            status_code=401,
+            detail="Accès refusé : Code PIN administrateur requis (6 chiffres)."
+        )
+
+
+class VerifyPinRequest(BaseModel):
+    pin: str
+
+
+@app.post("/api/admin/verify-pin")
+async def verify_pin_endpoint(req: VerifyPinRequest):
+    """Vérifie si le code PIN administrateur saisi est valide."""
+    is_valid = (req.pin.strip() == ADMIN_PIN.strip())
+    return {
+        "valid": is_valid,
+        "message": "Code PIN validé avec succès." if is_valid else "Code PIN incorrect."
+    }
+
+
 @app.post("/api/leads")
 async def capture_lead_endpoint(req: LeadCaptureRequest):
-    """Enregistre un prospect qualifié ayant demandé le rapport d'audit par email."""
+    """Enregistre un prospect qualifié ayant demandé le rapport d'audit par email et alerte l'admin."""
     if "@" not in req.email or "." not in req.email:
         raise HTTPException(status_code=400, detail="Veuillez fournir une adresse email valide.")
     lead = save_lead(
@@ -614,6 +651,13 @@ async def capture_lead_endpoint(req: LeadCaptureRequest):
         critical_count=req.critical_count or 0,
         notes=req.notes or ""
     )
+
+    # Notification instantanée par email à kpakpovictor12@gmail.com
+    try:
+        asyncio.create_task(notify_new_lead(lead))
+    except Exception as e:
+        print(f"[Lead Capture] Notification error: {e}")
+
     return {
         "status": "ok",
         "message": f"Rapport officiel programmé pour envoi à {req.email}. Merci de votre confiance !",
@@ -622,14 +666,16 @@ async def capture_lead_endpoint(req: LeadCaptureRequest):
 
 
 @app.get("/api/leads")
-async def list_leads_endpoint():
-    """Liste tous les prospects capturés via le Lead Magnet."""
+async def list_leads_endpoint(request: Request, pin: Optional[str] = Query(None)):
+    """Liste tous les prospects capturés via le Lead Magnet (accès protégé par Code PIN)."""
+    verify_admin_access(request, pin)
     return get_all_leads()
 
 
 @app.delete("/api/leads/{lead_id}")
-async def delete_lead_endpoint(lead_id: str):
-    """Supprime un prospect de la base de données."""
+async def delete_lead_endpoint(lead_id: str, request: Request, pin: Optional[str] = Query(None)):
+    """Supprime un prospect de la base de données (accès protégé par Code PIN)."""
+    verify_admin_access(request, pin)
     success = delete_lead(lead_id)
     if not success:
         raise HTTPException(status_code=404, detail="Prospect introuvable.")
@@ -637,8 +683,9 @@ async def delete_lead_endpoint(lead_id: str):
 
 
 @app.get("/api/leads/export/csv")
-async def export_leads_csv():
-    """Exporte la liste complète des prospects au format CSV exploitable dans Excel ou CRM."""
+async def export_leads_csv(request: Request, pin: Optional[str] = Query(None)):
+    """Exporte la liste complète des prospects au format CSV exploitable dans Excel (accès protégé par Code PIN)."""
+    verify_admin_access(request, pin)
     leads = get_all_leads()
     output = io.StringIO()
     writer = csv.writer(output, delimiter=";")

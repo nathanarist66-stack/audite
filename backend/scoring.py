@@ -34,7 +34,9 @@ def compile_audit_report(
     secrets_res: Optional[Dict[str, Any]] = None,
     privacy_res: Optional[Dict[str, Any]] = None,
     reputation_res: Optional[Dict[str, Any]] = None,
-    sitemap_res: Optional[Dict[str, Any]] = None
+    sitemap_res: Optional[Dict[str, Any]] = None,
+    cms_res: Optional[Dict[str, Any]] = None,
+    subdomains_res: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     Combines all scanner results into a comprehensive audit report with remediations.
@@ -49,6 +51,10 @@ def compile_audit_report(
         reputation_res = {"score_percentage": 100, "findings": [], "listed_on": []}
     if sitemap_res is None:
         sitemap_res = {"findings": []}
+    if cms_res is None:
+        cms_res = {"cms_name": "Inconnu", "findings": []}
+    if subdomains_res is None:
+        subdomains_res = {"subdomains": [], "findings": []}
 
     # Weighted score calculation across all security dimensions:
     # Headers: 25%, SSL: 25%, DNS: 15%, HTML & Secrets: 15%, Leaks: 10%, Privacy & RGPD: 10%
@@ -97,7 +103,9 @@ def compile_audit_report(
         ("Fuites de Clés & Secrets", secrets_res),
         ("Exposition & Fuites", leaks_res),
         ("Protection des Données & RGPD", privacy_res),
-        ("Exploration Multi-Pages & Sitemap", sitemap_res)
+        ("Exploration Multi-Pages & Sitemap", sitemap_res),
+        ("Exposition & CMS", cms_res),
+        ("Cartographie & Sous-domaines", subdomains_res)
     ]
 
     for category_name, res in categories:
@@ -184,6 +192,8 @@ def compile_audit_report(
             }
         },
         "findings": all_findings,
+        "cms": cms_res,
+        "subdomains": subdomains_res,
         "raw_data": {
             "headers": headers_res.get("raw_headers", {}),
             "ssl": {k: v for k, v in ssl_res.items() if k != "findings"},

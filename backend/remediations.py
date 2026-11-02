@@ -491,6 +491,78 @@ export default function sitemap(): MetadataRoute.Sitemap {
   ];
 }"""
         }
+    },
+    "wp_disable_rest_users": {
+        "title": "Désactiver l'énumération des utilisateurs WordPress",
+        "owasp": "A01:2021 - Broken Access Control",
+        "cwe": "CWE-200: Exposure of Sensitive Information",
+        "why": "L'API REST WordPress expose par défaut les logins d'administrateurs à l'adresse /wp-json/wp/v2/users, facilitant les attaques par force brute.",
+        "snippets": {
+            "apache": """# Dans le fichier functions.php de votre thème WordPress actif :
+add_filter('rest_endpoints', function($endpoints) {
+    if (!is_user_logged_in()) {
+        if (isset($endpoints['/wp/v2/users'])) {
+            unset($endpoints['/wp/v2/users']);
+        }
+        if (isset($endpoints['/wp/v2/users/(?P<id>[\\d]+)'])) {
+            unset($endpoints['/wp/v2/users/(?P<id>[\\d]+)']);
+        }
+    }
+    return $endpoints;
+});""",
+            "nginx": """# Bloquer l'accès à l'endpoint users dans Nginx pour les visiteurs non connectés :
+location ~* ^/wp-json/wp/v2/users {
+    deny all;
+    return 403;
+}"""
+        }
+    },
+    "wp_block_xmlrpc": {
+        "title": "Bloquer l'accès au fichier xmlrpc.php",
+        "owasp": "A05:2021 - Security Misconfiguration",
+        "cwe": "CWE-400: Uncontrolled Resource Consumption",
+        "why": "XML-RPC est obsolète (remplacé par la REST API) et constitue la cible favorite des bots pour les attaques par déni de service et force brute amplifié.",
+        "snippets": {
+            "apache": """# Dans votre fichier .htaccess à la racine de WordPress :
+<Files xmlrpc.php>
+Order Allow,Deny
+Deny from all
+</Files>""",
+            "nginx": """# Dans la configuration de votre bloc server Nginx :
+location = /xmlrpc.php {
+    deny all;
+    access_log off;
+    log_not_found off;
+    return 403;
+}"""
+        }
+    },
+    "wp_hide_login": {
+        "title": "Masquer et sécuriser la mire de connexion WordPress",
+        "owasp": "A07:2021 - Identification and Authentication Failures",
+        "cwe": "CWE-307: Improper Restriction of Excessive Authentication Attempts",
+        "why": "Laisser /wp-login.php ouvert expose votre site à des millions de tentatives de connexion automatisées par jour.",
+        "snippets": {
+            "apache": """# Recommandation :
+# 1. Installez l'extension gratuite 'WPS Hide Login' pour déplacer la page de connexion
+#    vers une URL secrète (ex: /mon-espace-secret-2026).
+# 2. Installez 'Limit Login Attempts Reloaded' pour bloquer les IP après 3 échecs.
+# 3. Activez l'authentification à deux facteurs (2FA) avec Wordfence ou WP 2FA."""
+        }
+    },
+    "subdomains_exposure": {
+        "title": "Protéger et cloisonner les sous-domaines sensibles",
+        "owasp": "A05:2021 - Security Misconfiguration",
+        "cwe": "CWE-200: Exposure of Sensitive Information",
+        "why": "Les sous-domaines de test (dev, staging, test) ou d'administration (admin, cpanel) sont fréquemment la porte d'entrée des pirates car ils sont moins surveillés que le site principal.",
+        "snippets": {
+            "nginx": """# Dans Nginx, restreindre l'accès à vos sous-domaines sensibles à votre seule IP :
+allow 123.45.67.89; # Votre IP fixe
+deny all;""",
+            "apache": """# Dans le .htaccess de votre sous-domaine de test :
+Require ip 123.45.67.89
+# Ou exiger une authentification HTTP Basic Auth pour tous les visiteurs externes"""
+        }
     }
 }
 
