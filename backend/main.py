@@ -10,6 +10,7 @@ import socket
 import csv
 import io
 import time
+import secrets
 from urllib.parse import urlparse
 from typing import Optional, List, Dict
 from collections import defaultdict
@@ -73,20 +74,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Rate Limiter Middleware (Anti-DDoS / Anti-Brute-Force for Public Deployment)
+# Helper to detect real client IP (Render / Cloudflare reverse proxy safe)
+def get_real_client_ip(request: Request) -> str:
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "127.0.0.1"
+
+
+# Rate Limiter Stores (Anti-DDoS / Anti-Brute-Force for Public Deployment)
 RATE_LIMIT_STORE = defaultdict(list)
-MAX_REQUESTS_PER_MINUTE = 40
+FORM_RATE_LIMIT_STORE = defaultdict(list)
+PIN_ATTEMPTS_STORE = defaultdict(list)
+
+MAX_AUDIT_PER_MINUTE = 30
+MAX_FORMS_PER_MINUTE = 5
+MAX_PIN_FAILS = 5
+PIN_LOCKOUT_SECONDS = 900  # 15 minutes lockout after 5 failed PIN attempts
+
 
 @app.middleware("http")
 async def rate_limiting_middleware(request: Request, call_next):
-    # Only rate-limit heavy audit endpoints
+    client_ip = get_real_client_ip(request)
+    now = time.time()
     path = request.url.path
-    if path in ["/api/audit", "/api/compare"]:
-        client_ip = request.client.host if request.client else "127.0.0.1"
-        now = time.time()
-        # Clean timestamps older than 60s
+
+    # Rate-limit heavy audit endpoints
+    if path in ["/api/audit", "/api/compare", "/api/audit/deep"]:
         timestamps = [t for t in RATE_LIMIT_STORE[client_ip] if now - t < 60]
-        if len(timestamps) >= MAX_REQUESTS_PER_MINUTE:
+        if len(timestamps) >= MAX_AUDIT_PER_MINUTE:
             return Response(
                 content='{"detail": "Trop de requêtes d\'audit envoyées. Veuillez patienter une minute avant de réessayer."}',
                 status_code=429,
@@ -94,6 +110,18 @@ async def rate_limiting_middleware(request: Request, call_next):
             )
         timestamps.append(now)
         RATE_LIMIT_STORE[client_ip] = timestamps
+
+    # Rate-limit form submission endpoints (anti-spam / anti-flooding)
+    elif path in ["/api/leads", "/api/orders"] and request.method == "POST":
+        timestamps = [t for t in FORM_RATE_LIMIT_STORE[client_ip] if now - t < 60]
+        if len(timestamps) >= MAX_FORMS_PER_MINUTE:
+            return Response(
+                content='{"detail": "Trop de soumissions de formulaire. Protection anti-spam active. Veuillez patienter une minute."}',
+                status_code=429,
+                media_type="application/json"
+            )
+        timestamps.append(now)
+        FORM_RATE_LIMIT_STORE[client_ip] = timestamps
 
     response = await call_next(request)
     # Security Response Headers (Audite self-hardening)
@@ -618,14 +646,34 @@ async def check_all_monitors():
 ADMIN_PIN = os.getenv("ADMIN_PIN", "842691")
 
 
+def check_pin_lockout(client_ip: str):
+    """Bloque temporairement une adresse IP après 5 tentatives échouées de saisie du PIN."""
+    now = time.time()
+    fails = [t for t in PIN_ATTEMPTS_STORE[client_ip] if now - t < PIN_LOCKOUT_SECONDS]
+    PIN_ATTEMPTS_STORE[client_ip] = fails
+    if len(fails) >= MAX_PIN_FAILS:
+        remaining = int(PIN_LOCKOUT_SECONDS - (now - fails[0]))
+        minutes = max(1, remaining // 60)
+        raise HTTPException(
+            status_code=429,
+            detail=f"Sécurité : 5 tentatives échouées. Accès administrateur verrouillé pour encore {minutes} minute(s)."
+        )
+
+
 def verify_admin_access(request: Request, pin: Optional[str] = None):
-    """Vérifie la validité du Code PIN administrateur (Header X-Admin-PIN ou query param pin)."""
+    """Vérifie la validité du Code PIN administrateur avec comparaison en temps constant (anti-timing attack) et blocage brute-force."""
+    client_ip = get_real_client_ip(request)
+    check_pin_lockout(client_ip)
+
     auth_pin = request.headers.get("X-Admin-PIN") or request.headers.get("x-admin-pin") or pin
-    if not auth_pin or auth_pin.strip() != ADMIN_PIN.strip():
+    if not auth_pin or not secrets.compare_digest(auth_pin.strip(), ADMIN_PIN.strip()):
+        PIN_ATTEMPTS_STORE[client_ip].append(time.time())
         raise HTTPException(
             status_code=401,
-            detail="Accès refusé : Code PIN administrateur requis (6 chiffres)."
+            detail="Accès refusé : Code PIN administrateur incorrect ou manquant (6 chiffres)."
         )
+    # Réinitialisation en cas de succès
+    PIN_ATTEMPTS_STORE[client_ip] = []
 
 
 class VerifyPinRequest(BaseModel):
@@ -633,12 +681,24 @@ class VerifyPinRequest(BaseModel):
 
 
 @app.post("/api/admin/verify-pin")
-async def verify_pin_endpoint(req: VerifyPinRequest):
-    """Vérifie si le code PIN administrateur saisi est valide."""
-    is_valid = (req.pin.strip() == ADMIN_PIN.strip())
+async def verify_pin_endpoint(req: VerifyPinRequest, request: Request):
+    """Vérifie si le code PIN administrateur saisi est valide avec protection anti-brute-force."""
+    client_ip = get_real_client_ip(request)
+    check_pin_lockout(client_ip)
+
+    is_valid = secrets.compare_digest(req.pin.strip(), ADMIN_PIN.strip())
+    if not is_valid:
+        PIN_ATTEMPTS_STORE[client_ip].append(time.time())
+        remaining = max(0, MAX_PIN_FAILS - len(PIN_ATTEMPTS_STORE[client_ip]))
+        return {
+            "valid": False,
+            "message": f"Code PIN incorrect. Il vous reste {remaining} tentative(s) avant verrouillage temporaire."
+        }
+    
+    PIN_ATTEMPTS_STORE[client_ip] = []
     return {
-        "valid": is_valid,
-        "message": "Code PIN validé avec succès." if is_valid else "Code PIN incorrect."
+        "valid": True,
+        "message": "Code PIN validé avec succès."
     }
 
 

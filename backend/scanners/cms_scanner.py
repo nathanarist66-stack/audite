@@ -35,12 +35,16 @@ async def scan_cms_security(
     is_webflow = False
 
     # Signatures WordPress
-    if (
-        "wp-content" in html_lower
-        or "wp-includes" in html_lower
+    has_wp_structure = (
+        "/wp-content/" in html_lower
+        or "/wp-includes/" in html_lower
+        or "wp-block-" in html_lower
+        or "wp-emoji-" in html_lower
+        or 'rel="https://api.w.org/' in html_lower
         or "wordpress" in headers_lower.get("x-powered-by", "")
         or "wordpress" in headers_lower.get("generator", "")
-    ):
+    )
+    if has_wp_structure:
         is_wordpress = True
         cms_name = "WordPress"
 

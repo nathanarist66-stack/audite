@@ -1140,6 +1140,42 @@ Bien cordialement,
             </table>
           </div>
         </div>
+
+        <!-- Orders Table (149 EUR Remediation Orders) -->
+        <div class="bg-gradient-to-b from-slate-900 to-slate-950 border border-emerald-900/40 rounded-3xl p-6 space-y-4 shadow-xl">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div class="space-y-1">
+              <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold font-mono-code">
+                <span>⚡</span> COMMANDES DU PACK SÉCURISATION (149 €)
+              </div>
+              <h3 class="text-xl font-black text-white">Clients ayant délégué la remédiation</h3>
+              <p class="text-xs text-slate-300">Coordonnées directes, lien WhatsApp instantané et patchs techniques générés.</p>
+            </div>
+            <button onclick="loadOrdersTable()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 text-xs font-semibold border border-emerald-800/40 transition flex items-center gap-1.5">
+              <span>🔄 Actualiser Commandes</span>
+            </button>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead>
+                <tr class="border-b border-slate-800 text-slate-400 font-mono-code">
+                  <th class="py-3 px-3">Date</th>
+                  <th class="py-3 px-3">Domaine Cible</th>
+                  <th class="py-3 px-3">Email Client</th>
+                  <th class="py-3 px-3">WhatsApp / Tél</th>
+                  <th class="py-3 px-3">CMS</th>
+                  <th class="py-3 px-3">Montant</th>
+                  <th class="py-3 px-3">Statut</th>
+                  <th class="py-3 px-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="orders-table-tbody" class="divide-y divide-slate-800/60 font-mono-code">
+                <tr><td colspan="8" class="py-8 text-center text-slate-500 italic">Chargement des commandes...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1332,6 +1368,9 @@ Bien cordialement,
           return;
         }
 
+        // Also load orders table
+        loadOrdersTable();
+
         tbody.innerHTML = leads.map(l => {
           const dateStr = l.created_at ? new Date(l.created_at).toLocaleDateString('fr-FR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute:'2-digit'}) : 'Récemment';
           const gradeBadge = `<span class="px-2 py-0.5 rounded text-xs font-bold font-mono-code bg-slate-800 text-white">${l.global_score || 0}/100 (${l.grade || 'N/A'})</span>`;
@@ -1360,6 +1399,82 @@ Bien cordialement,
       } catch (e) {
         console.error(e);
       }
+    }
+
+    window.ordersCache = {};
+
+    async function loadOrdersTable() {
+      const pin = getAdminPin();
+      const tbody = document.getElementById('orders-table-tbody');
+      if (!tbody || !pin) return;
+
+      try {
+        const res = await fetch(`/api/orders?pin=${encodeURIComponent(pin)}`, {
+          headers: { 'X-Admin-PIN': pin }
+        });
+        if (res.status === 401) return;
+        const orders = await res.json();
+
+        if (!orders || orders.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="8" class="py-8 text-center text-slate-500 italic">Aucune commande pour le moment. Dès qu\'un client commande le Pack 149 €, il apparaîtra ici avec son numéro WhatsApp direct !</td></tr>';
+          return;
+        }
+
+        window.ordersCache = {};
+        tbody.innerHTML = orders.map(o => {
+          window.ordersCache[o.id] = o;
+          const dateStr = o.created_at ? new Date(o.created_at).toLocaleDateString('fr-FR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute:'2-digit'}) : 'Récemment';
+          const cleanPhone = (o.phone || '').replace(/[^0-9+]/g, '');
+          const waLink = cleanPhone ? `https://wa.me/${cleanPhone.replace('+', '')}` : '#';
+
+          return `
+            <tr class="hover:bg-slate-800/40 transition">
+              <td class="py-3 px-3 text-slate-400 text-[11px]">${dateStr}</td>
+              <td class="py-3 px-3 font-bold text-white">${escapeHtml(o.domain)}</td>
+              <td class="py-3 px-3 text-cyan-300">${escapeHtml(o.email)}</td>
+              <td class="py-3 px-3">
+                ${cleanPhone ? `<a href="${waLink}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-emerald-400 hover:underline font-bold">💬 ${escapeHtml(o.phone)}</a>` : '<span class="text-slate-500">Non renseigné</span>'}
+              </td>
+              <td class="py-3 px-3">
+                <span class="px-2 py-0.5 rounded text-[11px] font-bold uppercase bg-slate-800 text-slate-300 border border-slate-700">${escapeHtml(o.platform || 'Auto')}</span>
+              </td>
+              <td class="py-3 px-3">
+                <span class="px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono-code">${o.price || 149} €</span>
+              </td>
+              <td class="py-3 px-3">
+                <span class="px-2 py-0.5 rounded text-[11px] font-bold ${o.status === 'completed' ? 'bg-emerald-950 text-emerald-400' : 'bg-amber-950/60 text-amber-400'}">${escapeHtml(o.status || 'En attente')}</span>
+              </td>
+              <td class="py-3 px-3 text-right space-x-2">
+                <button onclick="inspectMonitoredSite('https://${escapeHtml(o.domain)}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[11px] transition">Auditer</button>
+                <button onclick="viewOrderPatch('${escapeHtml(o.id)}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-cyan-950 text-cyan-300 text-[11px] transition">Voir Patch</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function viewOrderPatch(orderId) {
+      const order = window.ordersCache[orderId];
+      if (!order) {
+        alert("Commande introuvable.");
+        return;
+      }
+      const patch = order.patch_content || "Aucun patch stocké pour cette commande.";
+      const win = window.open("", "_blank");
+      win.document.write(`
+        <html>
+          <head><title>Correctif Sécurité - ${order.domain}</title></head>
+          <body style="background:#0b0f19; color:#f1f5f9; font-family:monospace; padding:20px; line-height:1.5;">
+            <h2 style="color:#10b981;">Correctif de Sécurité Déterministe pour ${order.domain}</h2>
+            <p>Client: ${order.email} | Téléphone/WhatsApp: ${order.phone} | CMS: ${order.platform}</p>
+            <hr style="border-color:#334155; margin:15px 0;">
+            <pre style="background:#020617; border:1px solid #1e293b; padding:15px; border-radius:8px; white-space:pre-wrap;">${escapeHtml(patch)}</pre>
+          </body>
+        </html>
+      `);
     }
 
     async function deleteLeadItem(id) {
