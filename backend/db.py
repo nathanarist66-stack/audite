@@ -64,6 +64,20 @@ def init_db():
                 created_at TIMESTAMP NOT NULL
             );
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS orders (
+                id TEXT PRIMARY KEY,
+                domain TEXT NOT NULL,
+                email TEXT NOT NULL,
+                phone TEXT,
+                platform TEXT DEFAULT 'auto',
+                price INTEGER DEFAULT 149,
+                status TEXT DEFAULT 'pending',
+                patch_content TEXT,
+                notes TEXT,
+                created_at TIMESTAMP NOT NULL
+            );
+        """)
         # Safe migration if column doesn't exist
         try:
             conn.execute("ALTER TABLE monitored_domains ADD COLUMN webhook_url TEXT;")
@@ -330,5 +344,47 @@ def delete_lead(lead_id: str) -> bool:
         cursor = conn.execute("DELETE FROM leads WHERE id = ?", (lead_id,))
         conn.commit()
         return cursor.rowcount > 0
+
+
+def save_order(
+    domain: str,
+    email: str,
+    phone: str = "",
+    platform: str = "auto",
+    price: int = 149,
+    patch_content: str = "",
+    notes: str = ""
+) -> Dict[str, Any]:
+    """Enregistre une commande de remédiation assistée (Pack 149 €)."""
+    init_db()
+    order_id = f"cmd_{uuid.uuid4().hex[:10]}"
+    clean_domain = domain.lower().replace("https://", "").replace("http://", "").split("/")[0]
+    created_at = datetime.now(timezone.utc).isoformat()
+    with get_db_connection() as conn:
+        conn.execute("""
+            INSERT INTO orders (id, domain, email, phone, platform, price, status, patch_content, notes, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (order_id, clean_domain, email.strip().lower(), phone.strip(), platform, price, "pending", patch_content, notes, created_at))
+        conn.commit()
+    return {
+        "id": order_id,
+        "domain": clean_domain,
+        "email": email.strip().lower(),
+        "phone": phone.strip(),
+        "platform": platform,
+        "price": price,
+        "status": "pending",
+        "patch_content": patch_content,
+        "created_at": created_at
+    }
+
+
+def get_all_orders() -> List[Dict[str, Any]]:
+    """Retourne toutes les commandes de remédiation passées."""
+    init_db()
+    with get_db_connection() as conn:
+        rows = conn.execute("SELECT * FROM orders ORDER BY created_at DESC").fetchall()
+        return [dict(r) for r in rows]
+
 
 

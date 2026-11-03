@@ -4,7 +4,75 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Audite - Analyseur de Vulnérabilités & Guide de Remédiation Web</title>
-  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js">
+    // ================= MODAL & ORDER REMEDIATION (149 €) =================
+    function openOrderModal() {
+      if (!currentReport) {
+        alert("Veuillez d'abord lancer une analyse de votre site.");
+        return;
+      }
+      const domainInput = document.getElementById('order-domain-input');
+      const domain = currentReport.domain || (new URL(currentReport.url)).hostname;
+      if (domainInput) domainInput.value = domain;
+      const modal = document.getElementById('modal-order');
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function closeOrderModal() {
+      const modal = document.getElementById('modal-order');
+      if (modal) modal.classList.add('hidden');
+      const msg = document.getElementById('order-status-msg');
+      if (msg) msg.classList.add('hidden');
+    }
+
+    async function handleOrderSubmit(e) {
+      e.preventDefault();
+      const domain = document.getElementById('order-domain-input').value.trim();
+      const email = document.getElementById('order-email-input').value.trim();
+      const phone = document.getElementById('order-phone-input').value.trim();
+      const platform = document.getElementById('order-platform-select').value;
+      const btn = document.getElementById('btn-submit-order');
+      const msg = document.getElementById('order-status-msg');
+
+      btn.disabled = true;
+      btn.classList.add('opacity-50');
+
+      try {
+        const res = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            domain: domain,
+            email: email,
+            phone: phone,
+            platform: platform,
+            price: 149
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          msg.className = "text-xs p-4 rounded-xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-200 space-y-2 block";
+          msg.innerHTML = `
+            <p class="font-bold text-white text-sm">🎉 Commande validée avec succès !</p>
+            <p>${data.message}</p>
+            <p class="text-[11px] text-emerald-300">Notre équipe prépare votre patch sur-mesure. Vous recevrez la confirmation et le lien de suivi à <strong>${escapeHtml(email)}</strong> et par WhatsApp au <strong>${escapeHtml(phone)}</strong>.</p>
+          `;
+          btn.style.display = 'none';
+        } else {
+          msg.className = "text-xs p-3 rounded-xl bg-red-950/80 border border-red-500/40 text-red-200 block";
+          msg.textContent = data.detail || "Erreur lors de la validation de la commande.";
+        }
+      } catch (err) {
+        msg.className = "text-xs p-3 rounded-xl bg-red-950/80 border border-red-500/40 text-red-200 block";
+        msg.textContent = "Erreur réseau : " + err.message;
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('opacity-50');
+      }
+    }
+
+  </script>
   <style>
     @keyframes pulse-subtle {
       0%, 100% { opacity: 1; transform: scale(1); }
@@ -293,6 +361,46 @@
         <!-- Injected via JS -->
       </div>
 
+      <!-- SYNTHÈSE DIRIGEANT & IMPACT BUSINESS -->
+      <div id="executive-insights-card" class="hidden bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+          <div class="flex items-center gap-2">
+            <span class="text-xl">📢</span>
+            <div>
+              <h3 class="text-sm font-bold text-white uppercase tracking-wider">Synthèse Dirigeant & Impact Métier</h3>
+              <p class="text-xs text-slate-400">Analyse du risque financier, juridique (RGPD/CNIL) et commercial</p>
+            </div>
+          </div>
+          <!-- 3 Conformité badges -->
+          <div class="flex flex-wrap items-center gap-2" id="compliance-badges-container">
+            <!-- Injected via JS -->
+          </div>
+        </div>
+
+        <p id="exec-headline" class="text-sm font-semibold text-slate-200 leading-relaxed"></p>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1 text-xs">
+          <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+            <span class="font-bold text-red-400 flex items-center gap-1.5">
+              <span>💶</span> Risque Financier / RGPD
+            </span>
+            <p id="exec-financial-risk" class="text-slate-300"></p>
+          </div>
+          <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+            <span class="font-bold text-amber-400 flex items-center gap-1.5">
+              <span>📬</span> Délivrabilité Factures & Devis
+            </span>
+            <p id="exec-deliverability-risk" class="text-slate-300"></p>
+          </div>
+          <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+            <span class="font-bold text-cyan-400 flex items-center gap-1.5">
+              <span>🛡️</span> Confiance Acheteurs & Formulaires
+            </span>
+            <p id="exec-commercial-impact" class="text-slate-300"></p>
+          </div>
+        </div>
+      </div>
+
       <!-- 7 PILLARS OVERVIEW -->
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         <!-- Pillar 1 -->
@@ -395,6 +503,32 @@
         </div>
         <div id="subdomains-surface-list" class="flex flex-wrap gap-2 pt-1">
           <!-- Injected via JS -->
+        </div>
+      </div>
+
+      <!-- PACK SÉCURISATION EXPRESS 149€ BANNER -->
+      <div id="order-remediation-banner" class="bg-gradient-to-r from-emerald-950/60 via-slate-900 to-teal-950/60 border-2 border-emerald-500/40 rounded-3xl p-6 sm:p-8 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 shadow-2xl relative overflow-hidden">
+        <div class="absolute -right-12 -top-12 w-48 h-48 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
+        <div class="space-y-3 max-w-2xl">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold font-mono">
+            <span>⚡</span> PACK SÉCURISATION EXPRESS • 149 € HT
+          </div>
+          <h3 class="text-xl sm:text-2xl font-black text-white">Résolution Intégrale de vos Failles sous 24h</h3>
+          <p class="text-xs sm:text-sm text-slate-300">
+            Déléguez l'application des correctifs à nos experts en sécurité. Nous déployons vos en-têtes officiels, verrouillons votre CMS et vous garantissons une note <strong>A+ (≥85/100)</strong> sans aucun risque de casser votre site grâce à notre procédure de sauvegarde (Rollback).
+          </p>
+          <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-emerald-400 font-semibold">
+            <span>✓ Garantie Note A+ sous 24h</span>
+            <span>✓ Sauvegarde intégrale incluse (Rollback)</span>
+            <span>✓ Satisfait ou remboursé</span>
+          </div>
+        </div>
+        <div class="w-full lg:w-auto flex flex-col items-center sm:items-end gap-2 shrink-0">
+          <button onclick="openOrderModal()" class="w-full sm:w-auto px-6 py-4 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-slate-950 font-black text-sm transition shadow-xl shadow-emerald-500/30 flex items-center justify-center gap-2 cursor-pointer">
+            <span>Commander la Sécurisation (149 €)</span>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+          </button>
+          <span class="text-[11px] text-slate-400 text-center sm:text-right">Intervention express par ingénieur cybersécurité</span>
         </div>
       </div>
 
@@ -796,7 +930,7 @@
               <li class="flex items-center gap-2"><span class="text-cyan-400">✓</span> <strong>Surveillance 24/7 Illimitée</strong> avec Webhooks Discord/Slack</li>
               <li class="flex items-center gap-2"><span class="text-cyan-400">✓</span> <strong>Revente des rapports autorisée</strong> (marge 100% pour vous)</li>
               <li class="flex items-center gap-2"><span class="text-cyan-400">✓</span> Scans en masse & Mode Duel illimité</li>
-              <li class="flex items-center gap-2"><span class="text-cyan-400">✓</span> Support dédié prioritaire & accès API Swagger</li>
+              <li class="flex items-center gap-2"><span class="text-cyan-400">✓</span> Support dédié prioritaire & accès API Développeurs sécurisée</li>
             </ul>
           </div>
           <button onclick="alert('Contacter le support commercial pour activer le compte Agence.')" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-bold border border-cyan-800/40 transition">
@@ -1662,6 +1796,26 @@ Bien cordialement,
       document.getElementById('cnt-passed').textContent = data.summary.passed;
 
       // Pillars
+            // Executive Insights & Business Impact
+      const execCard = document.getElementById('executive-insights-card');
+      if (execCard && data.executive_summary) {
+        execCard.classList.remove('hidden');
+        document.getElementById('exec-headline').textContent = data.executive_summary.headline;
+        document.getElementById('exec-financial-risk').textContent = data.executive_summary.financial_risk;
+        document.getElementById('exec-deliverability-risk').textContent = data.executive_summary.deliverability_risk;
+        document.getElementById('exec-commercial-impact').textContent = data.executive_summary.commercial_impact;
+
+        const compCont = document.getElementById('compliance-badges-container');
+        if (compCont && data.compliance) {
+          const c = data.compliance;
+          compCont.innerHTML = `
+            <span class="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-${c.rgpd.color}-500/10 border border-${c.rgpd.color}-500/30 text-${c.rgpd.color}-400">🇪🇺 RGPD: ${c.rgpd.status}</span>
+            <span class="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-${c.anssi.color}-500/10 border border-${c.anssi.color}-500/30 text-${c.anssi.color}-400">🛡️ ANSSI: ${c.anssi.status}</span>
+            <span class="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-${c.owasp_top10.color}-500/10 border border-${c.owasp_top10.color}-500/30 text-${c.owasp_top10.color}-400">🌐 OWASP: ${c.owasp_top10.status}</span>
+          `;
+        }
+      }
+
       document.getElementById('pill-headers-score').textContent = `${data.pillars.headers.score}%`;
       document.getElementById('pill-headers-detail').textContent = `${data.pillars.headers.passed}/${data.pillars.headers.total} conformes`;
 
@@ -2526,6 +2680,53 @@ Bien cordialement,
           </button>
         </div>
       </div>
+    </div>
+  </div>
+  <!-- ================= MODAL: COMMANDE DE SÉCURISATION (149 €) ================= -->
+  <div id="modal-order" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-5 shadow-2xl relative">
+      <button onclick="closeOrderModal()" class="absolute top-5 right-5 text-slate-400 hover:text-white transition text-lg">✕</button>
+      
+      <div class="space-y-1.5">
+        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold font-mono">
+          <span>⚡</span> INTERVENTION CLÉ-EN-MAIN
+        </div>
+        <h3 class="text-xl font-bold text-white">Commander le Pack Sécurisation Express (149 €)</h3>
+        <p class="text-xs text-slate-400">Renseignez vos coordonnées. Notre équipe prépare immédiatement vos correctifs sur-mesure avec sauvegarde de rollback.</p>
+      </div>
+
+      <form onsubmit="handleOrderSubmit(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Site à Sécuriser</label>
+          <input type="text" id="order-domain-input" required readonly class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-emerald-400 font-mono focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Votre Adresse Email *</label>
+          <input type="email" id="order-email-input" required placeholder="contact@votre-entreprise.com" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Téléphone / WhatsApp (Pour suivi rapide) *</label>
+          <input type="tel" id="order-phone-input" required placeholder="+33 6 12 34 56 78 ou +229 ..." class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Hébergeur ou CMS</label>
+          <select id="order-platform-select" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500">
+            <option value="auto">Détection automatique</option>
+            <option value="wordpress">WordPress (cPanel / Hostinger / OVH)</option>
+            <option value="vercel">Vercel / Next.js</option>
+            <option value="apache">Serveur Apache (.htaccess)</option>
+            <option value="nginx">Serveur Nginx (VPS / Dédié)</option>
+            <option value="shopify">Shopify</option>
+            <option value="autre">Autre plateforme</option>
+          </select>
+        </div>
+
+        <div id="order-status-msg" class="hidden text-xs p-3 rounded-xl"></div>
+
+        <button type="submit" id="btn-submit-order" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-slate-950 font-black text-sm transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer">
+          <span>Valider ma Commande (149 €)</span>
+        </button>
+      </form>
     </div>
   </div>
 </body>

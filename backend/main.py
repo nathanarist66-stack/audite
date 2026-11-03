@@ -32,7 +32,7 @@ from .scanners.reputation_scanner import scan_ip_reputation
 from .scanners.sitemap_scanner import discover_and_audit_sitemap
 from .scanners.cms_scanner import scan_cms_security
 from .scanners.subdomains_scanner import discover_subdomains_passive
-from .notifier import notify_new_lead, ADMIN_NOTIFICATION_EMAIL
+from .notifier import notify_new_lead, notify_new_order, ADMIN_NOTIFICATION_EMAIL
 from .alerts import send_security_alert, send_test_webhook
 from .scoring import compile_audit_report
 from .badge import generate_svg_badge
@@ -50,7 +50,9 @@ from .db import (
     update_monitored_webhook,
     save_lead,
     get_all_leads,
-    delete_lead
+    delete_lead,
+    save_order,
+    get_all_orders
 )
 
 app = FastAPI(
@@ -708,6 +710,60 @@ async def export_leads_csv(request: Request, pin: Optional[str] = Query(None)):
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": "attachment; filename=prospects_audite.csv"}
     )
+
+
+class OrderCreateRequest(BaseModel):
+    domain: str
+    email: str
+    phone: Optional[str] = ""
+    platform: Optional[str] = "auto"
+    price: Optional[int] = 149
+    notes: Optional[str] = ""
+
+
+@app.post("/api/orders")
+async def create_order_endpoint(req: OrderCreateRequest):
+    """Enregistre une commande ferme du Pack Sécurisation Express (149 €)."""
+    if "@" not in req.email or "." not in req.email:
+        raise HTTPException(status_code=400, detail="Veuillez fournir une adresse email valide.")
+    
+    clean_domain = req.domain.lower().replace("https://", "").replace("http://", "").split("/")[0]
+    
+    # Génération automatique du patch de remédiation déterministe
+    patch_text = ""
+    latest_report = get_latest_audit_by_domain(clean_domain)
+    if latest_report:
+        patch_info = generate_unified_patch(latest_report.get("findings", []), platform=req.platform or "auto")
+        patch_text = patch_info.get("content", "")
+    
+    order = save_order(
+        domain=clean_domain,
+        email=req.email,
+        phone=req.phone or "",
+        platform=req.platform or "auto",
+        price=req.price or 149,
+        patch_content=patch_text,
+        notes=req.notes or ""
+    )
+    
+    # Notification immédiate à kpakpovictor12@gmail.com
+    try:
+        asyncio.create_task(notify_new_order(order))
+    except Exception as e:
+        print(f"[Order] Notification error: {e}")
+        
+    return {
+        "status": "ok",
+        "message": "Votre commande du Pack Sécurisation Express (149 €) a été validée avec succès. Un expert prend en charge votre site immédiatement !",
+        "order": order
+    }
+
+
+@app.get("/api/orders")
+async def list_orders_endpoint(request: Request, pin: Optional[str] = Query(None)):
+    """Liste toutes les commandes de remédiation passées (accès protégé par Code PIN)."""
+    verify_admin_access(request, pin)
+    return get_all_orders()
 
 
 # Mount static files if frontend build exists

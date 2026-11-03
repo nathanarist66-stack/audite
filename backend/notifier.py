@@ -108,3 +108,96 @@ async def notify_new_lead(lead_data: Dict[str, Any]) -> bool:
     print(f"=======================================================\n")
     return True
 
+
+async def notify_new_order(order_data: Dict[str, Any]) -> bool:
+    """
+    Envoie une alerte immédiate lors d'une commande payante du Pack Sécurisation (149 €).
+    """
+    domain = order_data.get("domain", "domaine-inconnu")
+    client_email = order_data.get("email", "inconnu")
+    phone = order_data.get("phone", "Non renseigné")
+    platform = order_data.get("platform", "Automatique")
+    price = order_data.get("price", 149)
+    order_id = order_data.get("id", "N/A")
+
+    subject = f"🚨 [COMMANDE 149 €] Pack Sécurisation Express : {domain} !"
+    
+    html_content = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; color: #f8fafc; padding: 24px; border-radius: 12px; border: 2px solid #10b981;">
+        <h2 style="color: #10b981; margin-top: 0;">💰 NOUVELLE COMMANDE REÇUE : {price} € !</h2>
+        <p style="color: #cbd5e1; font-size: 14px;">Un client vient de commander le <strong>Pack Sécurisation Express (Garantie Note A+)</strong> :</p>
+        
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">
+            <tr style="border-bottom: 1px solid #334155;">
+                <td style="padding: 10px; color: #94a3b8; font-weight: bold;">N° Commande :</td>
+                <td style="padding: 10px; color: #10b981; font-weight: bold;">{order_id}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #334155;">
+                <td style="padding: 10px; color: #94a3b8; font-weight: bold;">Site à Sécuriser :</td>
+                <td style="padding: 10px; color: #f8fafc; font-weight: bold;">{domain}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #334155;">
+                <td style="padding: 10px; color: #94a3b8; font-weight: bold;">Email Client :</td>
+                <td style="padding: 10px; color: #38bdf8; font-weight: bold;"><a href="mailto:{client_email}" style="color: #38bdf8;">{client_email}</a></td>
+            </tr>
+            <tr style="border-bottom: 1px solid #334155;">
+                <td style="padding: 10px; color: #94a3b8; font-weight: bold;">Téléphone / WhatsApp :</td>
+                <td style="padding: 10px; color: #f59e0b; font-weight: bold;">{phone}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #334155;">
+                <td style="padding: 10px; color: #94a3b8; font-weight: bold;">Hébergeur / CMS :</td>
+                <td style="padding: 10px; color: #e2e8f0; font-weight: bold;">{platform}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #334155;">
+                <td style="padding: 10px; color: #94a3b8; font-weight: bold;">Montant Facturé :</td>
+                <td style="padding: 10px; color: #10b981; font-weight: bold; font-size: 16px;">{price} €</td>
+            </tr>
+        </table>
+        
+        <div style="background: #1e293b; padding: 14px; border-radius: 8px; font-size: 13px; color: #cbd5e1; margin-bottom: 20px;">
+            ⚡ <strong>Action à mener :</strong> Contactez le client sur WhatsApp ou par email pour confirmer la prise en charge. Le patch de correction a déjà été calculé par Audite et vous pouvez le retrouver dans l'espace administrateur !
+        </div>
+        
+        <p style="font-size: 11px; color: #64748b; margin-bottom: 0;">Plateforme Audite Cloud • https://audite-232m.onrender.com</p>
+    </div>
+    """
+
+    if RESEND_API_KEY:
+        try:
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                res = await client.post(
+                    "https://api.resend.com/emails",
+                    headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+                    json={
+                        "from": "Audite Orders <onboarding@resend.dev>",
+                        "to": [ADMIN_NOTIFICATION_EMAIL],
+                        "subject": subject,
+                        "html": html_content
+                    }
+                )
+                if res.status_code in [200, 201]:
+                    return True
+        except Exception:
+            pass
+
+    if SMTP_HOST and SMTP_USER and SMTP_PASS:
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = SMTP_USER
+            msg["To"] = ADMIN_NOTIFICATION_EMAIL
+            msg.attach(MIMEText(html_content, "html"))
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=6.0) as server:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASS)
+                server.sendmail(SMTP_USER, [ADMIN_NOTIFICATION_EMAIL], msg.as_string())
+            return True
+        except Exception:
+            pass
+
+    print(f"\n=======================================================")
+    print(f"[COMMANDE VALIDEE : {price} EUR] Destinataire: {ADMIN_NOTIFICATION_EMAIL}")
+    print(f"Domaine: {domain} | Client: {client_email} | Tel: {phone} | CMS: {platform}")
+    print(f"=======================================================\n")
+    return True
+

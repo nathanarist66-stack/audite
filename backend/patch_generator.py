@@ -173,6 +173,62 @@ def generate_unified_patch(findings: List[Dict[str, Any]], platform: str = "fire
             "content": "\n".join(lines)
         }
 
+    # 4. WORDPRESS (.htaccess + blocage xmlrpc et rest api)
+    elif platform in ["wordpress", "wp"]:
+        lines = [
+            "# ==============================================================================",
+            "# 🛡️ AUDITE SECURITY ENGINE - PATCH SPÉCIAL WORDPRESS (.htaccess)",
+            "# ⚠️ PROCÉDURE DE SAUVEGARDE & ROLLBACK (GARANTIE ZÉRO CASSE) :",
+            "# 1. Avant d'appliquer ce fichier, sauvegardez votre .htaccess actuel :",
+            "#    Exemple : cp .htaccess .htaccess.backup",
+            "# 2. Déposez ce patch à la racine de votre installation WordPress.",
+            "# 3. En cas de dysfonctionnement, restaurez instantanément votre sauvegarde :",
+            "#    Exemple : mv .htaccess.backup .htaccess",
+            "# ==============================================================================",
+            "",
+            "# 1. EN-TÊTES DE SÉCURITÉ HTTP (RECOMMANDATIONS ANSSI & OWASP)",
+            "<IfModule mod_headers.c>"
+        ]
+        if needs_hsts:
+            lines.append('    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"')
+        if needs_csp:
+            lines.append('    Header always set Content-Security-Policy "default-src \'self\' https: data: \'unsafe-inline\' \'unsafe-eval\'; img-src \'self\' https: data:; font-src \'self\' https: data:;"')
+        if needs_xfo:
+            lines.append('    Header always set X-Frame-Options "SAMEORIGIN"')
+        if needs_xcto:
+            lines.append('    Header always set X-Content-Type-Options "nosniff"')
+        if needs_referrer:
+            lines.append('    Header always set Referrer-Policy "strict-origin-when-cross-origin"')
+        if needs_permissions:
+            lines.append('    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"')
+        lines.extend([
+            "</IfModule>",
+            "",
+            "# 2. BLOQUER LE FICHIER XML-RPC (ANTI FORCE-BRUTE ET RELAIS DDOS)",
+            "<Files xmlrpc.php>",
+            "    Order Allow,Deny",
+            "    Deny from all",
+            "</Files>",
+            "",
+            "# 3. VERROUILLER WP-CONFIG ET LES FICHIERS SENSIBLES (.env, .git)",
+            "<Files wp-config.php>",
+            "    Order Allow,Deny",
+            "    Deny from all",
+            "</Files>",
+            "",
+            '<FilesMatch "^\\.(?!well-known)">',
+            "    Require all denied",
+            "</FilesMatch>",
+            "",
+            "# 4. MASQUER LA BANNIÈRE SERVEUR",
+            "ServerSignature Off"
+        ])
+        return {
+            "filename": ".htaccess",
+            "language": "apache",
+            "content": "\n".join(lines)
+        }
+
     # 4. NODE.JS / EXPRESS (security.js)
     elif platform in ["nodejs", "node", "express"]:
         content = """// Middleware de sécurité généré par Audite Security Engine
